@@ -1,14 +1,16 @@
-FROM pytorch/pytorch:1.1.0-cuda10.0-cudnn7.5-devel
+FROM pytorch/pytorch:1.4-cuda10.1-cudnn7-devel
 
 # Hack to not have tzdata cmdline config during build
 RUN ln -fs /usr/share/zoneinfo/Europe/Amsterdam /etc/localtime
 
+# Keys for cuda repo
 RUN gpg --keyserver keyserver.ubuntu.com --recv-keys A4B469963BF863CC
 RUN gpg --export --armor A4B469963BF863CC | apt-key add
 
 # Prepare apt
-RUN apt-get update && \
+RUN apt update && \
     apt install -yq software-properties-common && \
+    add-apt-repository --yes universe && \
     apt update
     
 # Install python 3 dependencies
@@ -30,7 +32,16 @@ RUN apt-get install -yq \
         tk-dev \
         libgdbm-dev \
         libc6-dev \
-        libbz2-dev 
+        liblzma-dev \
+        libbz2-dev \
+        zlib1g-dev \
+        xz-utils \
+        libxml2-dev \
+        libxmlsec1-dev \
+        libzstd-dev
+
+# Delete python2 package
+RUN apt remove -yq python python-minimal python3.5 python3.5-minimal python3 python3-minimal
 
 # Install python 3.7
 RUN wget https://www.python.org/ftp/python/3.7.4/Python-3.7.4.tgz && \
@@ -41,12 +52,12 @@ RUN wget https://www.python.org/ftp/python/3.7.4/Python-3.7.4.tgz && \
     make install && \
     cd .. && \
     rm -r Python-3.7.4 Python-3.7.4.tgz
-
+    
 # Create symlink for python 3.7
-RUN rm /usr/bin/python3 && ln -s /usr/local/bin/python3.7 /usr/bin/python3
-
-# Fix lsb_release issue by replacing first line with python2 reference
-RUN VAR="#! /usr/bin/python2.7" sed -i "1s/.*/$VAR/" /usr/bin/lsb_release
+RUN ln -sf /usr/local/bin/python3.7 /usr/bin/python3
+RUN ln -sf /usr/local/bin/python3.7 /usr/local/bin/python3
+RUN ln -sf /usr/local/bin/python3.7 /usr/bin/python
+RUN ln -sf /usr/local/bin/python3.7 /usr/local/bin/python
 
 # Install dependencies for project
 RUN apt install -yq \
@@ -68,24 +79,37 @@ RUN apt install -yq \
         libgoogle-glog-dev \
         libsuitesparse-dev \
         libatlas-base-dev \
+        libxcb-dri3-0 \
+        libxcb-xinerama0 \
+        libxcb1 \
         && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+# Remove conda
+RUN rm -r /opt/conda
+
+# Force bash as main shell
+RUN ln -sf /bin/bash /bin/sh
 
 # Use a non-priviledged user
 RUN useradd -ms /bin/bash myuser
 USER myuser
 
 # Env variables
-ENV PATH $PATH:/opt/conda/envs/env/bin:/opt/conda/bin:/home/myuser/.local/bin:/home/myuser/.local/lib
-ENV CUDA_HOME "/usr/local/cuda-10.0"
+ENV PATH $PATH:/home/myuser/.local/bin:/home/myuser/.local/lib
+ENV CUDA_HOME "/usr/local/cuda-10.1"
 
 WORKDIR /work
 
 # Install requirements
-RUN python3 -m pip install --user --upgrade pip
-RUN python3 -m pip install --user Cython
+RUN python3 -m venv pvnet-env
+RUN source pvnet-env/bin/activate && python3 -m pip install --upgrade pip
+RUN source pvnet-env/bin/activate && python3 -m pip install Cython==0.28.2 setuptools==57.5.0 wheel==0.42.0
+RUN source pvnet-env/bin/activate && python3 -m pip install --index-url https://download.pytorch.org/whl/cu101/ torch==1.3.1
 COPY ./requirements.txt /work
-RUN python3 -m pip install --user -r /work/requirements.txt
+RUN source pvnet-env/bin/activate && python3 -m pip install -r /work/requirements.txt
+RUN source pvnet-env/bin/activate && python3 -m pip install --index-url https://download.pytorch.org/whl/cu101/ torchvision==0.4.1
+    
 
 CMD ["/bin/bash"]
