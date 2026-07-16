@@ -82,9 +82,15 @@ RUN apt install -yq \
         libxcb-dri3-0 \
         libxcb-xinerama0 \
         libxcb1 \
+        libspqr2 \
         && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+# Hack to get uncertainty_pnp code library to work
+RUN ln -s /usr/lib/x86_64-linux-gnu/libspqr.so.2.0.8 /usr/lib/x86_64-linux-gnu/libspqr.so.2.0.2
+RUN ln -s /usr/lib/x86_64-linux-gnu/libcholmod.so.3.0.11 /usr/lib/x86_64-linux-gnu/libcholmod.so.3.0.6
+RUN ln -s /usr/lib/x86_64-linux-gnu/libcxsparse.so.3.2.0 /usr/lib/x86_64-linux-gnu/libcxsparse.so.3.1.4
 
 # Remove conda
 RUN rm -r /opt/conda
@@ -106,10 +112,8 @@ WORKDIR /work
 RUN python3 -m venv pvnet-env
 RUN source pvnet-env/bin/activate && python3 -m pip install --upgrade pip
 RUN source pvnet-env/bin/activate && python3 -m pip install Cython==0.28.2 setuptools==57.5.0 wheel==0.42.0
-RUN source pvnet-env/bin/activate && python3 -m pip install --index-url https://download.pytorch.org/whl/cu101/ torch==1.3.1
+RUN source pvnet-env/bin/activate && python3 -m pip install --index-url https://download.pytorch.org/whl/cu101/ torch==1.3.0
 COPY ./requirements.txt /work
-RUN source pvnet-env/bin/activate && python3 -m pip install -r /work/requirements.txt
-RUN source pvnet-env/bin/activate && python3 -m pip install --index-url https://download.pytorch.org/whl/cu101/ torchvision==0.4.1
-    
+RUN source pvnet-env/bin/activate && python3 -m pip install -r /work/requirements.txt    
 
 CMD ["/bin/bash"]
